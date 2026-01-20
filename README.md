@@ -13,6 +13,7 @@ This feature-rich Slack MCP Server has:
 - **Enterprise Workspaces Support**: Possibility to integrate with Enterprise Slack setups.
 - **Channel and Thread Support with `#Name` `@Lookup`**: Fetch messages from channels and threads, including activity messages, and retrieve channels using their names (e.g., #general) as well as their IDs.
 - **Smart History**: Fetch messages with pagination by date (d1, 7d, 1m) or message count.
+- **Unread Messages**: Get all unread messages across channels efficiently with priority sorting (DMs > partner channels > internal), @mention filtering, and mark-as-read support.
 - **Search Messages**: Search messages in channels, threads, and DMs using various filters like date, user, and content.
 - **Safe Message Posting**: The `conversations_add_message` tool is disabled by default for safety. Enable it via an environment variable, with optional channel restrictions.
 - **DM and Group DM support**: Retrieve direct messages and group direct messages.
@@ -84,14 +85,32 @@ Get list of channels
   - `limit` (number, default: 100): The maximum number of items to return. Must be an integer between 1 and 1000 (maximum 999).
   - `cursor` (string, optional): Cursor for pagination. Use the value of the last row and column in the response as next_cursor field returned from the previous request.
 
-### 6. canvases_create:
+### 6. conversations_unreads
+Get unread messages across all channels efficiently. Uses a single API call to identify channels with unreads, then fetches only those messages. Results are prioritized: DMs > partner channels (Slack Connect) > internal channels.
+- **Parameters:**
+  - `include_messages` (boolean, default: true): If true, returns the actual unread messages. If false, returns only a summary of channels with unreads.
+  - `channel_types` (string, default: "all"): Filter by channel type: `all`, `dm` (direct messages), `group_dm` (group DMs), `partner` (externally shared channels), `internal` (regular workspace channels).
+  - `max_channels` (number, default: 50): Maximum number of channels to fetch unreads from.
+  - `max_messages_per_channel` (number, default: 10): Maximum messages to fetch per channel.
+  - `mentions_only` (boolean, default: false): If true, only returns channels where you have @mentions.
+
+### 7. conversations_mark
+Mark a channel or DM as read.
+
+> **Note:** Marking messages as read is disabled by default for safety. To enable, set the `SLACK_MCP_MARK_TOOL` environment variable to `true` or `1`. See the Environment Variables section below for details.
+
+- **Parameters:**
+  - `channel_id` (string, required): ID of the channel in format `Cxxxxxxxxxx` or its name starting with `#...` or `@...` (e.g., `#general`, `@username`).
+  - `ts` (string, optional): Timestamp of the message to mark as read up to. If not provided, marks all messages as read.
+
+### 8. canvases_create:
 Create a new canvas with markdown content
 - **Parameters:**
   - `title` (string, optional): Title of the canvas. If not provided, canvas will be created untitled.
   - `content` (string, required): Markdown content for the canvas. Supports headings, lists, code blocks, tables, links, mentions (@user, #channel), and emojis.
 - **Returns:** `canvas_id` that can be used for further operations
 
-### 7. canvases_edit:
+### 9. canvases_edit:
 Edit an existing canvas by adding, replacing, or deleting content
 - **Parameters:**
   - `canvas_id` (string, required): ID of the canvas to edit (e.g., F1234567890)
@@ -99,14 +118,14 @@ Edit an existing canvas by adding, replacing, or deleting content
   - `content` (string, required): Markdown content to add or use for replacement. Supports headings, lists, code blocks, tables, links, mentions, and emojis.
   - `section_id` (string, optional): Section ID for targeted operations (required for: `insert_before`, `insert_after`, `delete`). Use `canvases_sections_lookup` to find section IDs.
 
-### 8. canvases_sections_lookup:
+### 10. canvases_sections_lookup:
 Look up section IDs in a canvas for targeted edits
 - **Parameters:**
   - `canvas_id` (string, required): ID of the canvas to search for sections (e.g., F1234567890)
   - `contains_text` (string, optional): Filter sections by text content
 - **Returns:** Array of section objects with IDs that can be used with `canvases_edit`
 
-### 9. canvases_read:
+### 11. canvases_read:
 Read canvas metadata and full content
 - **Parameters:**
   - `canvas_id` (string, required): ID of the canvas to read (e.g., F1234567890)
@@ -169,6 +188,7 @@ Fetches a CSV directory of all users in the workspace.
 | `SLACK_MCP_ADD_MESSAGE_TOOL`      | No        | `nil`                     | Enable message posting via `conversations_add_message` by setting it to true for all channels, a comma-separated list of channel IDs to whitelist specific channels, or use `!` before a channel ID to allow all except specified ones, while an empty value disables posting by default. |
 | `SLACK_MCP_ADD_MESSAGE_MARK`      | No        | `nil`                     | When the `conversations_add_message` tool is enabled, any new message sent will automatically be marked as read.                                                                                                                                                                          |
 | `SLACK_MCP_ADD_MESSAGE_UNFURLING` | No        | `nil`                     | Enable to let Slack unfurl posted links or set comma-separated list of domains e.g. `github.com,slack.com` to whitelist unfurling only for them. If text contains whitelisted and unknown domain unfurling will be disabled for security reasons.                                         |
+| `SLACK_MCP_MARK_TOOL`             | No        | `nil`                     | Enable the `conversations_mark` tool by setting to `true` or `1`. Disabled by default to prevent accidental marking of messages as read.                                                                                                                                                  |
 | `SLACK_MCP_USERS_CACHE`           | No        | `~/Library/Caches/slack-mcp-server/users_cache.json` (macOS)<br>`~/.cache/slack-mcp-server/users_cache.json` (Linux)<br>`%LocalAppData%/slack-mcp-server/users_cache.json` (Windows) | Path to the users cache file. Used to cache Slack user information to avoid repeated API calls on startup. |
 | `SLACK_MCP_CHANNELS_CACHE`        | No        | `~/Library/Caches/slack-mcp-server/channels_cache_v2.json` (macOS)<br>`~/.cache/slack-mcp-server/channels_cache_v2.json` (Linux)<br>`%LocalAppData%/slack-mcp-server/channels_cache_v2.json` (Windows) | Path to the channels cache file. Used to cache Slack channel information to avoid repeated API calls on startup. |
 | `SLACK_MCP_LOG_LEVEL`             | No        | `info`                    | Log-level for stdout or stderr. Valid values are: `debug`, `info`, `warn`, `error`, `panic` and `fatal`                                                                                                                                                                                   |
